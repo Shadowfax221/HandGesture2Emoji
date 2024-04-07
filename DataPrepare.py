@@ -9,7 +9,7 @@ import numpy as np
 LANDMARKER_MODEL_PATH = 'models/hand_landmarker.task'
 CSV_DATASET_PATH = 'datasets/HandLandmarks.csv'
 IMAGE_DATASET_DIR = "E:/MyDatasets/hagrid_dataset_512"
-ANNOTATIONS_DIR = "E:/MyDatasets/hagrid_dataset_annotations/train"          # modify train or test here
+ANNOTATIONS_DIR = "E:/MyDatasets/hagrid_dataset_annotations/test"          # modify train or test here
 LABELS = ['call', 'dislike', 'fist', 'like', 'mute', 'ok', 'one', 'palm', 'peace', 'rock', 'stop', 'stop_inverted']
 
 BaseOptions = mp.tasks.BaseOptions
@@ -20,7 +20,7 @@ VisionRunningMode = mp.tasks.vision.RunningMode
 
 class HandDataPrepare():
     def __init__(self):
-        self.NUM_SAMPLES = 750
+        self.NUM_SAMPLES = 150
 
     # Pop out a random key
     def pop_random_key(self, keys_list):
