@@ -9,7 +9,7 @@ import numpy as np
 LANDMARKER_MODEL_PATH = 'models/hand_landmarker.task'
 CSV_DATASET_PATH = 'datasets/HandLandmarks.csv'
 IMAGE_DATASET_DIR = "E:/MyDatasets/hagrid_dataset_512"
-ANNOTATIONS_DIR = "E:/MyDatasets/hagrid_dataset_annotations/test"          # modify train or test here
+ANNOTATIONS_DIR = "E:/MyDatasets/hagrid_dataset_annotations/train"
 LABELS = ['call', 'dislike', 'fist', 'like', 'mute', 'ok', 'one', 'palm', 'peace', 'rock', 'stop', 'stop_inverted']
 
 BaseOptions = mp.tasks.BaseOptions
@@ -20,7 +20,7 @@ VisionRunningMode = mp.tasks.vision.RunningMode
 
 class HandDataPrepare():
     def __init__(self):
-        self.NUM_SAMPLES = 150
+        self.NUM_SAMPLES = 125
 
     # Pop out a random key
     def pop_random_key(self, keys_list):
@@ -50,8 +50,10 @@ class HandDataPrepare():
         for idx, landmark in enumerate(hand_landmarks):
             if self.is_point_in_bbox(landmark.x, landmark.y, gesture_bboxes):
                 if idx == 0:
-                    base_x, base_y, base_z = landmark.x - 0.5, landmark.y - 0.5, landmark.z - 0.5
-                landmark_list.extend([landmark.x - base_x, landmark.y - base_y, landmark.z - base_z])
+                    base_x, base_y = landmark.x - 0.5, landmark.y - 0.5
+                    landmark_list.extend([0.5, 0.5, 0])
+                else:
+                    landmark_list.extend([landmark.x - base_x, landmark.y - base_y, landmark.z])
             else:
                 break
         # Convert to numpy array and add handedness
