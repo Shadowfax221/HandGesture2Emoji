@@ -20,7 +20,7 @@ VisionRunningMode = mp.tasks.vision.RunningMode
 
 class HandDataPrepare():
     def __init__(self):
-        self.NUM_SAMPLES = 125
+        self.NUM_SAMPLES = 1000
 
     # Pop out a random key
     def pop_random_key(self, keys_list):
@@ -43,7 +43,7 @@ class HandDataPrepare():
         return ext_tl_x <= x <= ext_br_x and ext_tl_y <= y <= ext_br_y
     
 
-    # Preprocess the hand landmark
+    # Preprocess the hand landmark (modify) ######################
     def pre_process_landmark(self, hand_landmarks, handedness, gesture_bboxes=None):
         landmark_list = []
         # Convert to relative coordinates
@@ -54,6 +54,20 @@ class HandDataPrepare():
                     landmark_list.extend([0.5, 0.5, 0])
                 else:
                     landmark_list.extend([landmark.x - base_x, landmark.y - base_y, landmark.z])
+            else:
+                break
+        # Convert to numpy array and add handedness
+        landmark_array = np.array([handedness[0].index] + landmark_list).astype(np.float32)         # Right is 0, Left is 1
+        return landmark_array
+    
+
+    # Preprocess the hand landmark (no modify)
+    def pre_process_landmark_original(self, hand_landmarks, handedness, gesture_bboxes=None):
+        landmark_list = []
+        # Convert to relative coordinates
+        for _, landmark in enumerate(hand_landmarks):
+            if self.is_point_in_bbox(landmark.x, landmark.y, gesture_bboxes):
+                landmark_list.extend([landmark.x, landmark.y, landmark.z])
             else:
                 break
         # Convert to numpy array and add handedness
@@ -94,10 +108,10 @@ class HandDataPrepare():
 
                             for hand_landmarks, handedness in zip(hand_landmarker_result.hand_landmarks,
                                                                   hand_landmarker_result.handedness):
-                                landmark_array = self.pre_process_landmark(hand_landmarks, handedness, gesture_bboxes)
+                                landmark_array = self.pre_process_landmark_original(hand_landmarks, handedness, gesture_bboxes)
                                 row = [LABELS.index(label)] + landmark_array.tolist()
                                 
-                                if len(row) == 65:
+                                if len(row) == 21 * 3 + 2:
                                     csvwriter.writerow(row)
                                     samples_cnt += 1
                     print(f"Writen {samples_cnt} samples of {label}")
