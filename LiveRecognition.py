@@ -8,8 +8,10 @@ import tensorflow as tf
 from mediapipe import solutions
 from mediapipe.framework.formats import landmark_pb2
 
+from DataPrepare import HandDataPrepare
+
 LANDMARKER_MODEL_PATH = 'models/hand_landmarker.task'
-CLASSIFIER_MODEL_PATH = 'models/gesture_classifier_1000original.tflite'
+CLASSIFIER_MODEL_PATH = 'models/gesture_classifier_1000shift.tflite'
 LABELS = ['call', 'dislike', 'fist', 'like', 'mute', 'ok', 'one', 'palm', 'peace', 'rock', 'stop', 'stop_inverted']
 
 BaseOptions = mp.tasks.BaseOptions
@@ -17,6 +19,7 @@ HandLandmarker = mp.tasks.vision.HandLandmarker
 HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
 HandLandmarkerResult = mp.tasks.vision.HandLandmarkerResult
 VisionRunningMode = mp.tasks.vision.RunningMode
+HandLandmarkPrepare = HandDataPrepare()
 
 
 class HandLiveRecognition():
@@ -133,7 +136,7 @@ class HandLiveRecognition():
                         ])
 
                         # Hand Classification ##########################################################
-                        pre_processed_landmarks = self.pre_process_landmark_original(hand_landmarks, handedness)
+                        pre_processed_landmarks = HandLandmarkPrepare.pre_process_landmark(hand_landmarks, handedness)
                         model = self.load_tflite_model(CLASSIFIER_MODEL_PATH)
                         score, predictions = self.integrated_prediction(model, pre_processed_landmarks)
                         

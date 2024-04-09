@@ -50,10 +50,8 @@ class HandDataPrepare():
         for idx, landmark in enumerate(hand_landmarks):
             if self.is_point_in_bbox(landmark.x, landmark.y, gesture_bboxes):
                 if idx == 0:
-                    base_x, base_y = landmark.x - 0.5, landmark.y - 0.5
-                    landmark_list.extend([0.5, 0.5, 0])
-                else:
-                    landmark_list.extend([landmark.x - base_x, landmark.y - base_y, landmark.z])
+                    base_x, base_y, base_z = landmark.x, landmark.y, landmark.z
+                landmark_list.extend([landmark.x - base_x, landmark.y - base_y, landmark.z - base_z])
             else:
                 break
         # Convert to numpy array and add handedness
