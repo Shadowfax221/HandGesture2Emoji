@@ -9,8 +9,7 @@ from mediapipe import solutions
 from mediapipe.framework.formats import landmark_pb2
 
 LANDMARKER_MODEL_PATH = 'models/hand_landmarker.task'
-CLASSIFIER_MODEL_PATH1 = 'models/keypoint_classifier_part1.tflite'
-CLASSIFIER_MODEL_PATH2 = 'models/keypoint_classifier_part2.tflite'
+CLASSIFIER_MODEL_PATH = 'models/gesture_classifier_1000original.tflite'
 LABELS = ['call', 'dislike', 'fist', 'like', 'mute', 'ok', 'one', 'palm', 'peace', 'rock', 'stop', 'stop_inverted']
 
 BaseOptions = mp.tasks.BaseOptions
@@ -20,26 +19,20 @@ HandLandmarkerResult = mp.tasks.vision.HandLandmarkerResult
 VisionRunningMode = mp.tasks.vision.RunningMode
 
 
-class Mediapipe_HandModule():
+class HandLiveRecognition():
     def __init__(self):
         self.mp_drawing = solutions.drawing_utils
         self.mp_hands = solutions.hands
         self.results = None
 
 
-    def pre_process_landmark(self, hand_landmarks):
+    def pre_process_landmark_original(self, hand_landmarks, handedness):
         landmark_list = []
-        # # Convert to relative coordinates
-        # for idx, landmark in enumerate(hand_landmarks):
-        #     if idx == 0:
-        #         base_x, base_y = landmark.x, landmark.y
-        #     landmark_list.extend([landmark.x-base_x, landmark.y-base_y, landmark.z])
-        # # Normalization
-        # landmark_list = landmark_list / np.max(np.abs(landmark_list))
-        for landmark in hand_landmarks:
-            landmark_list.extend([landmark.x, landmark.y, landmark.z]) 
-        landmark_list = np.array([landmark_list]).astype(np.float32)
-        return landmark_list
+        for _, landmark in enumerate(hand_landmarks):
+            landmark_list.extend([landmark.x, landmark.y, landmark.z])
+        # Convert to numpy array and add handedness
+        landmark_array = np.array([handedness[0].index] + landmark_list).astype(np.float32)         # Right is 0, Left is 1
+        return landmark_array
     
 
     def load_tflite_model(self, tflite_model_path):
@@ -50,24 +43,16 @@ class Mediapipe_HandModule():
     def tflite_predict(self, model, input_data):
         input_details = model.get_input_details()
         output_details = model.get_output_details()
-        model.set_tensor(input_details[0]['index'], input_data)
+        model.set_tensor(input_details[0]['index'], np.array([input_data]))
         model.invoke()
         output_data = model.get_tensor(output_details[0]['index'])
         return output_data
 
-    def integrated_prediction(self, primary_model, secondary_model, input_data, threshold=0.5):
-        primary_pred = self.tflite_predict(primary_model, input_data)
-        primary_scores = np.max(primary_pred, axis=1)
-        primary_label = np.argmax(primary_pred, axis=1)
-        label_stop = LABELS.index('stop')
-        label_palm = LABELS.index('palm')
-        secondary_indices = np.logical_or(primary_label == label_stop, primary_label == label_palm)
-        secondary_input = input_data[secondary_indices]
-        if secondary_input.shape[0] > 0:  # Check if there's any data to predict with the secondary model
-            secondary_pred = self.tflite_predict(secondary_model, secondary_input)
-            secondary_label = np.argmax(secondary_pred, axis=1)
-            primary_label[secondary_indices] = np.where(secondary_label == 0, label_stop, label_palm)
-        return primary_scores, primary_label
+    def integrated_prediction(self, model, input_data):
+        pred = self.tflite_predict(model, input_data)
+        scores = np.max(pred, axis=1)
+        label = np.argmax(pred, axis=1)
+        return scores, label
 
 
     def draw_landmarks_on_image(self, annotated_image, hand_landmarks):
@@ -98,12 +83,13 @@ class Mediapipe_HandModule():
         return annotated_image
     
 
-    def draw_info_text(self, image, brect, score, hand_sign_text):
+    def draw_info_text(self, image, brect, handedness, score, hand_sign_text):
         cv2.rectangle(image, (brect[0], brect[1]), (brect[2], brect[1] - 22),
                     (0, 0, 0), -1)
-        info_text = f"{score:.2f}"
+        handedness_text = handedness[0].display_name
+        info_text = f"{handedness_text}:{score:.2f}"
         if hand_sign_text != "":
-            info_text = info_text + ':' + hand_sign_text
+            info_text = hand_sign_text + ':' + info_text
         cv2.putText(image, info_text, (brect[0] + 5, brect[1] - 4),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
         return image
@@ -112,7 +98,6 @@ class Mediapipe_HandModule():
 
     # Create a gesture landmarker instance with the live stream mode:
     def print_result(self, result: HandLandmarkerResult, output_image: mp.Image, timestamp_ms: int):
-        # print('pose landmarker result: {}'.format(result))
         self.results = result
     
     def main(self):
@@ -139,7 +124,8 @@ class Mediapipe_HandModule():
                 landmarker.detect_async(mp_image, timestamp)
 
                 if self.results is not None:
-                    for hand_landmarks in self.results.hand_landmarks:
+                    for hand_landmarks, handedness in zip(self.results.hand_landmarks,
+                                                          self.results.handedness):
                         # hand_landmarks set up ########################################################
                         hand_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
                         hand_landmarks_proto.landmark.extend([
@@ -147,18 +133,18 @@ class Mediapipe_HandModule():
                         ])
 
                         # Hand Classification ##########################################################
-                        pre_processed_landmarks = self.pre_process_landmark(hand_landmarks)
-                        primary_model = self.load_tflite_model(CLASSIFIER_MODEL_PATH1)
-                        secondary_model = self.load_tflite_model(CLASSIFIER_MODEL_PATH2)
-                        score, predictions = self.integrated_prediction(primary_model, secondary_model, pre_processed_landmarks)
+                        pre_processed_landmarks = self.pre_process_landmark_original(hand_landmarks, handedness)
+                        model = self.load_tflite_model(CLASSIFIER_MODEL_PATH)
+                        score, predictions = self.integrated_prediction(model, pre_processed_landmarks)
                         
-                        # drawing part
+                        # drawing part #################################################################
                         annotated_image = self.draw_landmarks_on_image(annotated_image, hand_landmarks_proto)
                         brect = self.calc_bounding_rect(annotated_image, hand_landmarks_proto)
                         annotated_image = self.draw_bounding_rect(annotated_image, brect)
                         annotated_image = self.draw_info_text(
                             annotated_image,
                             brect,
+                            handedness,
                             score[0],
                             LABELS[predictions[0]],
                         )
@@ -178,5 +164,5 @@ class Mediapipe_HandModule():
 
 
 if __name__ == "__main__":
-    body_module = Mediapipe_HandModule()
+    body_module = HandLiveRecognition()
     body_module.main()

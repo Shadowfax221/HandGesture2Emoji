@@ -64,13 +64,11 @@ class HandDataPrepare():
     # Preprocess the hand landmark (no modify)
     def pre_process_landmark_original(self, hand_landmarks, handedness, gesture_bboxes=None):
         landmark_list = []
-        # Convert to relative coordinates
         for _, landmark in enumerate(hand_landmarks):
             if self.is_point_in_bbox(landmark.x, landmark.y, gesture_bboxes):
                 landmark_list.extend([landmark.x, landmark.y, landmark.z])
             else:
                 break
-        # Convert to numpy array and add handedness
         landmark_array = np.array([handedness[0].index] + landmark_list).astype(np.float32)         # Right is 0, Left is 1
         return landmark_array
 
