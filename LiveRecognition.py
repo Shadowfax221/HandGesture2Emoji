@@ -96,6 +96,38 @@ class HandLiveRecognition():
         cv2.putText(image, info_text, (brect[0] + 5, brect[1] - 4),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
         return image
+    
+    def draw_emoji(self, frame, label, position):
+        """
+        Draws the corresponding emoji on the given frame based on the recognized label.
+
+        :param frame: The current video frame.
+        :param label: The recognized gesture label.
+        :param position: The position (x, y) on the frame where the emoji should be drawn.
+        """
+        emoji_path = f"emojis/{label}.png"  # Path to the emoji image
+        emoji_img = cv2.imread(emoji_path, -1)  # Read the emoji image with transparency channel
+
+        if emoji_img is not None:
+            # Resize emoji image if needed
+            emoji_img = cv2.resize(emoji_img, (100, 100))  # Adjust the size as needed
+
+            # Extract the alpha mask and the color components of the emoji image
+            alpha_mask = emoji_img[:, :, 3] / 255.0
+            emoji_color = emoji_img[:, :, :3]
+
+            # Define the region of interest (ROI) in the frame where the emoji will be placed
+            x, y = position
+            roi = frame[y:y+emoji_img.shape[0], x:x+emoji_img.shape[1]]
+
+            # Blend the emoji onto the frame
+            for c in range(0, 3):
+                roi[:, :, c] = (emoji_color[:, :, c] * alpha_mask) + (roi[:, :, c] * (1 - alpha_mask))
+
+            # Update the frame with the blended emoji
+            frame[y:y+emoji_img.shape[0], x:x+emoji_img.shape[1]] = roi
+
+        return frame
 
 
 
@@ -107,7 +139,7 @@ class HandLiveRecognition():
         options = HandLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=LANDMARKER_MODEL_PATH),
             running_mode=VisionRunningMode.LIVE_STREAM,
-            num_hands=2,
+            num_hands=1,
             result_callback=self.print_result)
         
         capture = cv2.VideoCapture(0)
@@ -151,7 +183,7 @@ class HandLiveRecognition():
                             score[0],
                             LABELS[predictions[0]],
                         )
-                        # annotated_image = self.draw_emoji()
+                        annotated_image = self.draw_emoji(annotated_image, LABELS[predictions[0]], (0, 0))
                         
                     cv2.imshow('Show', annotated_image)
                 else:
