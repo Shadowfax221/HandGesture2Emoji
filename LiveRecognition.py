@@ -107,7 +107,7 @@ class HandLiveRecognition():
         options = HandLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=LANDMARKER_MODEL_PATH),
             running_mode=VisionRunningMode.LIVE_STREAM,
-            num_hands=1,
+            num_hands=2,
             result_callback=self.print_result)
         
         capture = cv2.VideoCapture(0)
@@ -151,7 +151,7 @@ class HandLiveRecognition():
                             score[0],
                             LABELS[predictions[0]],
                         )
-                        # print(self.results.gestures)
+                        # annotated_image = self.draw_emoji()
                         
                     cv2.imshow('Show', annotated_image)
                 else:
