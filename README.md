@@ -22,5 +22,8 @@ In dataset selection, we select part of hand gestures, and match each to an emoj
 |11| stop inv.   | 🤚            | `:raised_back_of_hand:`   | U+1F91A     | similar to stop        |
 
 
-We prepare the training dataset into `HandLandmarks.csv`. The process is done by `DataPrepare.py`. We first detection the hand landmarks of images in HaGRID dataset by [mediapipe](https://developers.google.com/mediapipe/solutions/vision/hand_landmarker) landmarker model. The landmark looks like:
+We prepare the training dataset into `HandLandmarks.csv`. The process is done by `DataPrepare.py`. We first detection the hand landmarks of images in HaGRID dataset by [mediapipe](https://developers.google.com/mediapipe/solutions/vision/hand_landmarker) landmarker model. Each hand landmark will be preprocessed and converted into one row (65 columns) in csv file. The structure of one row is: 1) index 0 is label, same as the table above; 2) index 1 is handerness, right is 0 and left is 1; 3) index 2 to index 64 are positions (x,y,z) of 21 landmarks of a hand, shown in image below. The hand landmarks will be preprocessed, steps are: 1) shift all landmark points so point0 is at (0,0,0) 2) rotate all (x,y) to set the line between point0 and point5 vertical. 
 ![](https://developers.google.com/static/mediapipe/images/solutions/hand-landmarks.png)
+
+
+The model is trained by `gesture_classification.ipynb`, which output a model `gesture_classifier.tflite`. The demo `gesture_classifier.py` use the model to preform live stream hand gesture classification. 
