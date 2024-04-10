@@ -11,7 +11,7 @@ from mediapipe.framework.formats import landmark_pb2
 from DataPrepare import HandDataPrepare
 
 LANDMARKER_MODEL_PATH = 'models/hand_landmarker.task'
-CLASSIFIER_MODEL_PATH = 'models/gesture_classifier_1000shift.tflite'
+CLASSIFIER_MODEL_PATH = 'models/gesture_classifier.tflite'
 LABELS = ['call', 'dislike', 'fist', 'like', 'mute', 'ok', 'one', 'palm', 'peace', 'rock', 'stop', 'stop_inverted']
 
 BaseOptions = mp.tasks.BaseOptions
@@ -139,7 +139,7 @@ class HandLiveRecognition():
         options = HandLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=LANDMARKER_MODEL_PATH),
             running_mode=VisionRunningMode.LIVE_STREAM,
-            num_hands=1,
+            num_hands=2,
             result_callback=self.print_result)
         
         capture = cv2.VideoCapture(0)
@@ -186,8 +186,6 @@ class HandLiveRecognition():
                         annotated_image = self.draw_emoji(annotated_image, LABELS[predictions[0]], (0, 0))
                         
                     cv2.imshow('Show', annotated_image)
-                else:
-                    cv2.imshow('Show', frame)
                 
                 if cv2.waitKey(5) & 0xFF == ord('q'):
                     print("Closing Camera Stream")

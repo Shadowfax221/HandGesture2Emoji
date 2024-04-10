@@ -55,8 +55,16 @@ class HandDataPrepare():
             else:
                 break
         # Convert to numpy array and add handedness
-        landmark_array = np.array([handedness[0].index] + landmark_list).astype(np.float32)         # Right is 0, Left is 1
-        return landmark_array
+        landmark_array = np.array([handedness[0].index] + landmark_list)         # Right is 0, Left is 1
+        # add rotation
+        landmarks_xy = landmark_array[1:].reshape(-1,3)[:,:2]
+        point5 = landmarks_xy[5]
+        dx, dy = point5
+        angle = np.arctan2(dy, dx) + np.pi / 2
+        rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+        rotation_landmarks_xy = landmarks_xy.dot(rotation_matrix)
+        landmark_array = np.append(landmark_array[0], np.hstack((rotation_landmarks_xy, landmark_array[1:].reshape(-1,3)[:,2:])).flatten())
+        return landmark_array.astype(np.float32)
     
 
     # Preprocess the hand landmark (no modify)
