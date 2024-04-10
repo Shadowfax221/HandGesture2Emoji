@@ -11,7 +11,7 @@ from mediapipe.framework.formats import landmark_pb2
 from DataPrepare import HandDataPrepare
 
 LANDMARKER_MODEL_PATH = 'models/hand_landmarker.task'
-CLASSIFIER_MODEL_PATH = 'models/gesture_classifier.tflite'
+CLASSIFIER_MODEL_PATH = 'models/gesture_classifier_1000shift&rotation.tflite'
 LABELS = ['call', 'dislike', 'fist', 'like', 'mute', 'ok', 'one', 'palm', 'peace', 'rock', 'stop', 'stop_inverted']
 
 BaseOptions = mp.tasks.BaseOptions

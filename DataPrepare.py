@@ -54,16 +54,14 @@ class HandDataPrepare():
                 landmark_list.extend([landmark.x - base_x, landmark.y - base_y, landmark.z - base_z])
             else:
                 break
-        # Convert to numpy array and add handedness
-        landmark_array = np.array([handedness[0].index] + landmark_list)         # Right is 0, Left is 1
-        # add rotation
-        landmarks_xy = landmark_array[1:].reshape(-1,3)[:,:2]
-        point5 = landmarks_xy[5]
-        dx, dy = point5
+        # Rotation by point5 around point0
+        landmarks_xy, landmarks_z = np.array(landmark_list).reshape(-1,3)[:,:2], np.array(landmark_list).reshape(-1,3)[:,2:]
+        dx, dy = landmarks_xy[5]
         angle = np.arctan2(dy, dx) + np.pi / 2
-        rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
-        rotation_landmarks_xy = landmarks_xy.dot(rotation_matrix)
-        landmark_array = np.append(landmark_array[0], np.hstack((rotation_landmarks_xy, landmark_array[1:].reshape(-1,3)[:,2:])).flatten())
+        landmarks_xy_rotated = landmarks_xy.dot(np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]))
+        landmark_array = np.hstack((landmarks_xy_rotated, landmarks_z)).flatten()
+        # Append handedness
+        landmark_array = np.append(handedness[0].index, landmark_array)        # Right is 0, Left is 1
         return landmark_array.astype(np.float32)
     
 
