@@ -43,7 +43,7 @@ class HandDataPrepare():
         return ext_tl_x <= x <= ext_br_x and ext_tl_y <= y <= ext_br_y
     
 
-    # Preprocess the hand landmark (modify) ######################
+    # Preprocess the hand landmark (shift and rotate) ######################
     def pre_process_landmark(self, hand_landmarks, handedness, gesture_bboxes=None):
         landmark_list = []
         # Convert to relative coordinates
@@ -53,7 +53,7 @@ class HandDataPrepare():
                     base_x, base_y, base_z = landmark.x, landmark.y, landmark.z
                 landmark_list.extend([landmark.x - base_x, landmark.y - base_y, landmark.z - base_z])
             else:
-                break
+                return np.array([]).astype(np.float32)
         # Rotation by point5 around point0
         landmarks_xy, landmarks_z = np.array(landmark_list).reshape(-1,3)[:,:2], np.array(landmark_list).reshape(-1,3)[:,2:]
         dx, dy = landmarks_xy[5]
@@ -63,18 +63,6 @@ class HandDataPrepare():
         # Append handedness
         landmark_array = np.append(handedness[0].index, landmark_array)        # Right is 0, Left is 1
         return landmark_array.astype(np.float32)
-    
-
-    # Preprocess the hand landmark (no modify)
-    def pre_process_landmark_original(self, hand_landmarks, handedness, gesture_bboxes=None):
-        landmark_list = []
-        for _, landmark in enumerate(hand_landmarks):
-            if self.is_point_in_bbox(landmark.x, landmark.y, gesture_bboxes):
-                landmark_list.extend([landmark.x, landmark.y, landmark.z])
-            else:
-                break
-        landmark_array = np.array([handedness[0].index] + landmark_list).astype(np.float32)         # Right is 0, Left is 1
-        return landmark_array
 
 
     def main(self):
@@ -110,7 +98,7 @@ class HandDataPrepare():
 
                             for hand_landmarks, handedness in zip(hand_landmarker_result.hand_landmarks,
                                                                   hand_landmarker_result.handedness):
-                                landmark_array = self.pre_process_landmark_original(hand_landmarks, handedness, gesture_bboxes)
+                                landmark_array = self.pre_process_landmark(hand_landmarks, handedness, gesture_bboxes)
                                 row = [LABELS.index(label)] + landmark_array.tolist()
                                 
                                 if len(row) == 21 * 3 + 2:
