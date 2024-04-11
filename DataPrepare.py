@@ -6,11 +6,9 @@ import random
 import mediapipe as mp
 import numpy as np
 
-LANDMARKER_MODEL_PATH = 'models/hand_landmarker.task'
 CSV_DATASET_PATH = 'datasets/HandLandmarks.csv'
 IMAGE_DATASET_DIR = "E:/MyDatasets/hagrid_dataset_512"
 ANNOTATIONS_DIR = "E:/MyDatasets/hagrid_dataset_annotations/train"
-LABELS = ['call', 'dislike', 'fist', 'like', 'mute', 'ok', 'one', 'palm', 'peace', 'rock', 'stop', 'stop_inverted']
 
 BaseOptions = mp.tasks.BaseOptions
 HandLandmarker = mp.tasks.vision.HandLandmarker
@@ -21,6 +19,9 @@ VisionRunningMode = mp.tasks.vision.RunningMode
 class HandDataPrepare():
     def __init__(self):
         self.NUM_SAMPLES = 1000
+        self.LABELS = ['call', 'dislike', 'fist', 'like', 'mute', 'ok', 'one', 'palm', 'peace', 'rock', 'stop', 'stop_inverted']
+        self.NUM_CLASSES = len(self.LABELS)
+        self.LANDMARKER_MODEL_PATH = 'models/hand_landmarker.task'
 
     # Pop out a random key
     def pop_random_key(self, keys_list):
@@ -68,7 +69,7 @@ class HandDataPrepare():
     def main(self):
         # STEP 1: Create an HandLandmarker object.
         options = HandLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=LANDMARKER_MODEL_PATH),
+            base_options=BaseOptions(model_asset_path=self.LANDMARKER_MODEL_PATH),
             running_mode=VisionRunningMode.IMAGE)
         
         with HandLandmarker.create_from_options(options) as landmarker:
@@ -76,7 +77,7 @@ class HandDataPrepare():
                 csvwriter = csv.writer(csvfile)
 
                 # STEP 2: Load the input image.
-                for label in LABELS:
+                for label in self.LABELS:
                     with open(os.path.join(ANNOTATIONS_DIR, f"{label}.json"), 'r') as file:
                         annotations = json.load(file)
                     annotations_keys = list(annotations.keys())
@@ -99,9 +100,9 @@ class HandDataPrepare():
                             for hand_landmarks, handedness in zip(hand_landmarker_result.hand_landmarks,
                                                                   hand_landmarker_result.handedness):
                                 landmark_array = self.pre_process_landmark(hand_landmarks, handedness, gesture_bboxes)
-                                row = [LABELS.index(label)] + landmark_array.tolist()
+                                row = [self.LABELS.index(label)] + landmark_array.tolist()
                                 
-                                if len(row) == 21 * 3 + 2:
+                                if len(row) == self.NUM_CLASSES * 3 + 2:
                                     csvwriter.writerow(row)
                                     samples_cnt += 1
                     print(f"Writen {samples_cnt} samples of {label}")

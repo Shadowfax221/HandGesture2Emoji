@@ -1,5 +1,4 @@
 import copy
-import itertools
 
 import cv2
 import mediapipe as mp
@@ -10,16 +9,16 @@ from mediapipe.framework.formats import landmark_pb2
 
 from DataPrepare import HandDataPrepare
 
-LANDMARKER_MODEL_PATH = 'models/hand_landmarker.task'
-CLASSIFIER_MODEL_PATH = 'models/gesture_classifier.tflite'
-LABELS = ['call', 'dislike', 'fist', 'like', 'mute', 'ok', 'one', 'palm', 'peace', 'rock', 'stop', 'stop_inverted']
-
 BaseOptions = mp.tasks.BaseOptions
 HandLandmarker = mp.tasks.vision.HandLandmarker
 HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
 HandLandmarkerResult = mp.tasks.vision.HandLandmarkerResult
 VisionRunningMode = mp.tasks.vision.RunningMode
 HandLandmarkPrepare = HandDataPrepare()
+
+LANDMARKER_MODEL_PATH = HandLandmarkPrepare.LANDMARKER_MODEL_PATH
+CLASSIFIER_MODEL_PATH = 'models/gesture_classifier.tflite'
+LABELS = HandLandmarkPrepare.LABELS
 
 
 class HandLiveRecognition():
@@ -86,9 +85,13 @@ class HandLiveRecognition():
         return annotated_image
     
 
-    def draw_info_text(self, image, brect, handedness, score, hand_sign_text):
-        cv2.rectangle(image, (brect[0], brect[1]), (brect[2], brect[1] - 22),
-                    (0, 0, 0), -1)
+    def draw_info_text(self, image, brect, handedness, score, hand_sign_text, score_threshold=0.8):
+        if score > score_threshold:
+            cv2.rectangle(image, (brect[0], brect[1]), (brect[2], brect[1] - 22),
+                        (0, 0, 0), -1)
+        else:
+            cv2.rectangle(image, (brect[0], brect[1]), (brect[2], brect[1] - 22),
+                        (0, 0, 255), -1)
         handedness_text = handedness[0].display_name
         info_text = f"{handedness_text}:{score:.2f}"
         if hand_sign_text != "":
@@ -97,37 +100,32 @@ class HandLiveRecognition():
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
         return image
     
-    def draw_emoji(self, frame, label, position):
-        """
-        Draws the corresponding emoji on the given frame based on the recognized label.
-
-        :param frame: The current video frame.
-        :param label: The recognized gesture label.
-        :param position: The position (x, y) on the frame where the emoji should be drawn.
-        """
-        emoji_path = f"emojis/{label}.png"  # Path to the emoji image
-        emoji_img = cv2.imread(emoji_path, -1)  # Read the emoji image with transparency channel
-
+    def draw_emoji(self, image, label, handedness, position, size):
+        emoji_img = cv2.imread(f"emojis/{label}.png", -1)
         if emoji_img is not None:
-            # Resize emoji image if needed
-            emoji_img = cv2.resize(emoji_img, (100, 100))  # Adjust the size as needed
-
-            # Extract the alpha mask and the color components of the emoji image
+            emoji_img = cv2.resize(emoji_img, size)
+            if handedness[0].index == 1:  # flip if left hand
+                emoji_img = cv2.flip(emoji_img, 1)
             alpha_mask = emoji_img[:, :, 3] / 255.0
             emoji_color = emoji_img[:, :, :3]
+            h, w, _ = image.shape
+            eh, ew, _ = emoji_img.shape
+            x = max(0, min(position[0], w - 1))
+            y = max(0, min(position[1], h - 1))
+            x_end = min(x + ew, w)
+            y_end = min(y + eh, h)
+            ew = x_end - x
+            eh = y_end - y
+            if ew > 0 and eh > 0:
+                emoji_color = emoji_color[:eh, :ew]
+                alpha_mask = alpha_mask[:eh, :ew]
+                roi = image[y:y_end, x:x_end]
+                for c in range(0, 3):
+                    roi[:, :, c] = (emoji_color[:, :, c] * alpha_mask) + (roi[:, :, c] * (1 - alpha_mask))
+                image[y:y_end, x:x_end] = roi
+        return image
 
-            # Define the region of interest (ROI) in the frame where the emoji will be placed
-            x, y = position
-            roi = frame[y:y+emoji_img.shape[0], x:x+emoji_img.shape[1]]
 
-            # Blend the emoji onto the frame
-            for c in range(0, 3):
-                roi[:, :, c] = (emoji_color[:, :, c] * alpha_mask) + (roi[:, :, c] * (1 - alpha_mask))
-
-            # Update the frame with the blended emoji
-            frame[y:y+emoji_img.shape[0], x:x+emoji_img.shape[1]] = roi
-
-        return frame
 
 
 
@@ -139,14 +137,26 @@ class HandLiveRecognition():
         options = HandLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=LANDMARKER_MODEL_PATH),
             running_mode=VisionRunningMode.LIVE_STREAM,
-            num_hands=1,
+            num_hands=2,
             result_callback=self.print_result)
         
         capture = cv2.VideoCapture(0)
 
         timestamp = 0
         with HandLandmarker.create_from_options(options) as landmarker:
+            mode = 0
             while capture.isOpened():
+                key = cv2.waitKey(5)
+                if key == ord('q'):
+                    print("Closing Camera Stream")
+                    break
+                elif key == ord('0'):       # only show landmark
+                    mode = 0
+                elif key == ord('1'):       # show landmark and emoji
+                    mode = 1
+                elif key == ord('2'):       # only show emoji
+                    mode = 2
+
                 ret, frame = capture.read()
                 if not ret:
                     print("Ignoring empty frame")
@@ -173,23 +183,37 @@ class HandLiveRecognition():
                         score, predictions = self.integrated_prediction(model, pre_processed_landmarks)
                         
                         # drawing part #################################################################
-                        annotated_image = self.draw_landmarks_on_image(annotated_image, hand_landmarks_proto)
                         brect = self.calc_bounding_rect(annotated_image, hand_landmarks_proto)
-                        annotated_image = self.draw_bounding_rect(annotated_image, brect)
-                        annotated_image = self.draw_info_text(
-                            annotated_image,
-                            brect,
-                            handedness,
-                            score[0],
-                            LABELS[predictions[0]],
-                        )
-                        annotated_image = self.draw_emoji(annotated_image, LABELS[predictions[0]], (0, 0))
+                        if mode == 0 or mode == 1:
+                            annotated_image = self.draw_landmarks_on_image(annotated_image, hand_landmarks_proto)
+                            annotated_image = self.draw_bounding_rect(annotated_image, brect)
+                            annotated_image = self.draw_info_text(
+                                annotated_image,
+                                brect,
+                                handedness,
+                                score[0],
+                                LABELS[predictions[0]],
+                            )
+                            if mode == 1:
+                                annotated_image = self.draw_emoji(
+                                    annotated_image, 
+                                    LABELS[predictions[0]], 
+                                    handedness, 
+                                    position=(brect[2], brect[1]),
+                                    size=(100, 100)
+                                )
+                        elif mode == 2:
+                            annotated_image = self.draw_emoji(
+                                annotated_image, 
+                                LABELS[predictions[0]], 
+                                handedness, 
+                                position=(brect[0]-50, brect[1]-50),
+                                size=(brect[2]-brect[0]+100, brect[3]-brect[1]+100)
+                            )
                         
                     cv2.imshow('Show', annotated_image)
                 
-                if cv2.waitKey(5) & 0xFF == ord('q'):
-                    print("Closing Camera Stream")
-                    break
+                
                         
             capture.release()
             cv2.destroyAllWindows()
