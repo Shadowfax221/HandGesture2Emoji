@@ -102,7 +102,7 @@ class HandDataPrepare():
                                 landmark_array = self.pre_process_landmark(hand_landmarks, handedness, gesture_bboxes)
                                 row = [self.LABELS.index(label)] + landmark_array.tolist()
                                 
-                                if len(row) == self.NUM_CLASSES * 3 + 2:
+                                if len(row) == 21 * 3 + 2:
                                     csvwriter.writerow(row)
                                     samples_cnt += 1
                     print(f"Writen {samples_cnt} samples of {label}")
