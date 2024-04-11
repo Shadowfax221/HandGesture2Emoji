@@ -19,7 +19,8 @@ VisionRunningMode = mp.tasks.vision.RunningMode
 class HandDataPrepare():
     def __init__(self):
         self.NUM_SAMPLES = 1000
-        self.LABELS = ['call', 'dislike', 'fist', 'like', 'mute', 'ok', 'one', 'palm', 'peace', 'rock', 'stop', 'stop_inverted']
+        # self.LABELS = ['call', 'dislike', 'fist', 'like', 'mute', 'ok', 'one', 'palm', 'peace', 'rock', 'stop', 'stop_inverted']
+        self.LABELS = ['call', 'dislike', 'fist', 'four', 'like', 'mute', 'ok', 'one', 'palm', 'peace', 'peace_inverted', 'rock', 'stop', 'stop_inverted', 'three', 'three2', 'two_up', 'two_up_inverted']
         self.NUM_CLASSES = len(self.LABELS)
         self.LANDMARKER_MODEL_PATH = 'models/hand_landmarker.task'
 
@@ -102,7 +103,7 @@ class HandDataPrepare():
                                 landmark_array = self.pre_process_landmark(hand_landmarks, handedness, gesture_bboxes)
                                 row = [self.LABELS.index(label)] + landmark_array.tolist()
                                 
-                                if len(row) == self.NUM_CLASSES * 3 + 2:
+                                if len(row) == 21 * 3 + 2:
                                     csvwriter.writerow(row)
                                     samples_cnt += 1
                     print(f"Writen {samples_cnt} samples of {label}")
