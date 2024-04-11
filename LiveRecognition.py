@@ -92,7 +92,10 @@ class HandLiveRecognition():
         else:
             cv2.rectangle(image, (brect[0], brect[1]), (brect[2], brect[1] - 22),
                         (0, 0, 255), -1)
-        handedness_text = handedness[0].display_name
+        if handedness[0].display_name == "Right":
+            handedness_text = "Left"
+        else:
+            handedness_text = "Right"
         info_text = f"{handedness_text}:{score:.2f}"
         if hand_sign_text != "":
             info_text = hand_sign_text + ':' + info_text
