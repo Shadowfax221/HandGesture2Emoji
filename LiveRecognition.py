@@ -93,9 +93,9 @@ class HandLiveRecognition():
             cv2.rectangle(image, (brect[0], brect[1]), (brect[2], brect[1] - 22),
                         (0, 0, 255), -1)
         if handedness[0].display_name == "Right":
-            handedness_text = "Left"
+            handedness_text = "L"
         else:
-            handedness_text = "Right"
+            handedness_text = "R"
         info_text = f"{handedness_text}:{score:.2f}"
         if hand_sign_text != "":
             info_text = hand_sign_text + ':' + info_text
@@ -144,6 +144,8 @@ class HandLiveRecognition():
             result_callback=self.print_result)
         
         capture = cv2.VideoCapture(0)
+        capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
 
         timestamp = 0
         with HandLandmarker.create_from_options(options) as landmarker:
