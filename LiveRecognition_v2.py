@@ -21,12 +21,34 @@ CLASSIFIER_MODEL_PATH = 'models/gesture_classifier.tflite'
 LABELS = HandLandmarkPrepare.LABELS
 
 
+
+
+
+
+
 class HandLiveRecognition():
     def __init__(self):
         self.mp_drawing = solutions.drawing_utils
         self.mp_hands = solutions.hands
         self.results = None
 
+    # Preprocess the hand landmark (shift and rotate) ######################
+    def pre_process_landmark(self, hand_landmarks, handedness, gesture_bboxes=None):
+        landmark_list = []
+        # Convert to relative coordinates
+        for idx, landmark in enumerate(hand_landmarks.landmark):
+            if idx == 0:
+                base_x, base_y, base_z = landmark.x, landmark.y, landmark.z
+            landmark_list.extend([landmark.x - base_x, landmark.y - base_y, landmark.z - base_z])
+        # Rotation by point5 around point0
+        landmarks_xy, landmarks_z = np.array(landmark_list).reshape(-1,3)[:,:2], np.array(landmark_list).reshape(-1,3)[:,2:]
+        dx, dy = landmarks_xy[5]
+        angle = np.arctan2(dy, dx) + np.pi / 2
+        landmarks_xy_rotated = landmarks_xy.dot(np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]))
+        landmark_array = np.hstack((landmarks_xy_rotated, landmarks_z)).flatten()
+        # Append handedness
+        landmark_array = np.append(handedness.classification[0].index, landmark_array)        # Right is 0, Left is 1
+        return landmark_array.astype(np.float32)
 
     def pre_process_landmark_original(self, hand_landmarks, handedness):
         landmark_list = []
@@ -92,7 +114,7 @@ class HandLiveRecognition():
         else:
             cv2.rectangle(image, (brect[0], brect[1]), (brect[2], brect[1] - 22),
                         (0, 0, 255), -1)
-        if handedness[0].display_name == "Right":
+        if handedness.classification[0].label == "Right":
             handedness_text = "Left"
         else:
             handedness_text = "Right"
@@ -107,7 +129,7 @@ class HandLiveRecognition():
         emoji_img = cv2.imread(f"emojis/{label}.png", -1)
         if emoji_img is not None:
             emoji_img = cv2.resize(emoji_img, size)
-            if handedness[0].index == 1:  # flip if left hand
+            if handedness.classification[0].index == 1:  # flip if left hand
                 emoji_img = cv2.flip(emoji_img, 1)
             alpha_mask = emoji_img[:, :, 3] / 255.0
             emoji_color = emoji_img[:, :, :3]
@@ -145,81 +167,96 @@ class HandLiveRecognition():
         
         capture = cv2.VideoCapture(0)
 
-        timestamp = 0
-        with HandLandmarker.create_from_options(options) as landmarker:
-            mode = 0
-            while capture.isOpened():
-                key = cv2.waitKey(5)
-                if key == ord('q'):
-                    print("Closing Camera Stream")
-                    break
-                elif key == ord('0'):       # only show landmark
-                    mode = 0
-                elif key == ord('1'):       # show landmark and emoji
-                    mode = 1
-                elif key == ord('2'):       # only show emoji
-                    mode = 2
 
-                ret, frame = capture.read()
-                if not ret:
-                    print("Ignoring empty frame")
-                    break
-                frame = cv2.flip(frame, 1)
-                annotated_image = copy.deepcopy(frame)
-                
-                timestamp += 1
-                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
-                landmarker.detect_async(mp_image, timestamp)
+        
 
-                if self.results is not None:
-                    for hand_landmarks, handedness in zip(self.results.hand_landmarks,
-                                                          self.results.handedness):
-                        # hand_landmarks set up ########################################################
-                        hand_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
-                        hand_landmarks_proto.landmark.extend([
-                            landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in hand_landmarks
-                        ])
+        # timestamp = 0
+        mode = 0
+        while capture.isOpened():
+            key = cv2.waitKey(5)
+            if key == ord('q'):
+                print("Closing Camera Stream")
+                break
+            elif key == ord('0'):       # only show landmark
+                mode = 0
+            elif key == ord('1'):       # show landmark and emoji
+                mode = 1
+            elif key == ord('2'):       # only show emoji
+                mode = 2
 
-                        # Hand Classification ##########################################################
-                        pre_processed_landmarks = HandLandmarkPrepare.pre_process_landmark(hand_landmarks, handedness)
-                        model = self.load_tflite_model(CLASSIFIER_MODEL_PATH)
-                        score, predictions = self.integrated_prediction(model, pre_processed_landmarks)
-                        
-                        # drawing part #################################################################
-                        brect = self.calc_bounding_rect(annotated_image, hand_landmarks_proto)
-                        if mode == 0 or mode == 1:
-                            annotated_image = self.draw_landmarks_on_image(annotated_image, hand_landmarks_proto)
-                            annotated_image = self.draw_bounding_rect(annotated_image, brect)
-                            annotated_image = self.draw_info_text(
-                                annotated_image,
-                                brect,
-                                handedness,
-                                score[0],
-                                LABELS[predictions[0]],
-                            )
-                            if mode == 1:
-                                annotated_image = self.draw_emoji(
-                                    annotated_image, 
-                                    LABELS[predictions[0]], 
-                                    handedness, 
-                                    position=(brect[2], brect[1]),
-                                    size=(100, 100)
-                                )
-                        elif mode == 2:
+            ret, frame = capture.read()
+            if not ret:
+                print("Ignoring empty frame")
+                break
+            frame = cv2.flip(frame, 1)
+            annotated_image = copy.deepcopy(frame)
+            
+            # timestamp += 1
+            # mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
+            # landmarker.detect_async(mp_image, timestamp)
+
+            # Detection implementation #############################################################
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            frame.flags.writeable = False
+            hands = self.mp_hands.Hands(
+                static_image_mode='store_true',
+                max_num_hands=2,
+                min_detection_confidence=0.7,
+                min_tracking_confidence=0.5,
+            )
+            results = hands.process(frame) 
+            frame.flags.writeable = True
+
+            if results.multi_hand_landmarks is not None:
+                for hand_landmarks, handedness in zip(results.multi_hand_landmarks,
+                                                      results.multi_handedness):
+                    # # hand_landmarks set up ########################################################
+                    # hand_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
+                    # hand_landmarks_proto.landmark.extend([
+                    #     landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in hand_landmarks
+                    # ])
+
+                    # Hand Classification ##########################################################
+                    pre_processed_landmarks = self.pre_process_landmark(hand_landmarks, handedness)
+                    model = self.load_tflite_model(CLASSIFIER_MODEL_PATH)
+                    score, predictions = self.integrated_prediction(model, pre_processed_landmarks)
+                    
+                    # drawing part #################################################################
+                    brect = self.calc_bounding_rect(annotated_image, hand_landmarks)
+                    if mode == 0 or mode == 1:
+                        annotated_image = self.draw_landmarks_on_image(annotated_image, hand_landmarks)
+                        annotated_image = self.draw_bounding_rect(annotated_image, brect)
+                        annotated_image = self.draw_info_text(
+                            annotated_image,
+                            brect,
+                            handedness,
+                            score[0],
+                            LABELS[predictions[0]],
+                        )
+                        if mode == 1:
                             annotated_image = self.draw_emoji(
                                 annotated_image, 
                                 LABELS[predictions[0]], 
                                 handedness, 
-                                position=(brect[0]-50, brect[1]-50),
-                                size=(brect[2]-brect[0]+100, brect[3]-brect[1]+100)
+                                position=(brect[2], brect[1]),
+                                size=(100, 100)
                             )
-                        
-                cv2.imshow('Show', annotated_image)
+                    elif mode == 2:
+                        annotated_image = self.draw_emoji(
+                            annotated_image, 
+                            LABELS[predictions[0]], 
+                            handedness, 
+                            position=(brect[0]-50, brect[1]-50),
+                            size=(brect[2]-brect[0]+100, brect[3]-brect[1]+100)
+                        )
+                    
+            cv2.imshow('Show', annotated_image)
                 
                 
                         
-            capture.release()
-            cv2.destroyAllWindows()
+        capture.release()
+        cv2.destroyAllWindows()
 
 
 
