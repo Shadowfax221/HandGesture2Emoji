@@ -7,8 +7,8 @@ import mediapipe as mp
 import numpy as np
 
 CSV_DATASET_PATH = 'datasets/HandLandmarks.csv'
-IMAGE_DATASET_DIR = "E:/MyDatasets/hagrid_dataset_512"
-ANNOTATIONS_DIR = "E:/MyDatasets/hagrid_dataset_annotations/train"
+IMAGE_DATASET_DIR = "E:/MyDatasets/hagrid_dataset_512"                  # replace by your path
+ANNOTATIONS_DIR = "E:/MyDatasets/hagrid_dataset_annotations/train"      # replace by your path
 
 BaseOptions = mp.tasks.BaseOptions
 HandLandmarker = mp.tasks.vision.HandLandmarker
