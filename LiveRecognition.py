@@ -144,8 +144,8 @@ class HandLiveRecognition():
             result_callback=self.print_result)
         
         capture = cv2.VideoCapture(0)
-        capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+        capture.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
+        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
 
         timestamp = 0
         with HandLandmarker.create_from_options(options) as landmarker:
